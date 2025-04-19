@@ -11,6 +11,7 @@ typedef struct {
 } Team;
 
 // Structure for match details
+// Structure for match details
 typedef struct {
     char team1[50];
     char team2[50];
@@ -18,7 +19,12 @@ typedef struct {
     int day;
     int month;
     char time[10];
+    int team1_runs;   // Runs scored by team1
+    int team2_runs;   // Runs scored by team2
+    float team1_overs;  // Overs played by team1
+    float team2_overs;  // Overs played by team2
 } Match;
+
 
 //Structure for points table
 typedef struct {
@@ -59,18 +65,8 @@ Team teams[MAX_TEAMS];
 int teamCount = 0;
 PointsTable pointsTable[MAX_TEAMS];
 VenueAvailability venueAvailability[MAX_TEAMS];
-int lastMatchDay[MAX_TEAMS]={0};
-int lastMatchMonth[MAX_TEAMS]={0};
-int lastMatchYear[MAX_TEAMS]={0};
-int lastplayedmonth;
 
-// Function to calculate date difference manually
-int dateDifference(int d1, int m1, int y1, int d2, int m2, int y2) {
-    // Convert both dates to days
-    int days1 = y1 * 365 + m1 * getDaysInMonth(m1,y1) + d1;
-    int days2 = y2 * 365 + m2 * getDaysInMonth(m2,y2) + d2;
-    return days2 - days1;
-}
+
 
 // Function to get the number of days in a given month
 int getDaysInMonth(int month, int year) {
@@ -137,11 +133,6 @@ int isWeekend(int day, int month) {
     return (weekDay == 0 || weekDay == 6);
 }
 
-int needsRest(int team, int day, int month, int year) {
-    if (lastMatchYear[team] == 0) return 0; 
-    int daysSinceLastMatch = dateDifference(lastMatchDay[team], lastMatchMonth[team], lastMatchYear[team], day, month, year);
-    if(daysSinceLastMatch < 2) return 1; 
-}
 
 
 
@@ -158,21 +149,11 @@ void incrementDate(int *day, int *month, int *matchCountToday) {
         }
     }
 }
-
-void scheduleMatch(int homeIndex, int awayIndex, int day, int month, int matchCount) {
-    // Ensure venue is available
+void scheduleMatch(int homeIndex, int awayIndex, int day, int month,int matchCount) {
     while (isDateUnavailable(teams[homeIndex].homeground, day, month)) {
         printf("Match at %s on %02d/%02d is unavailable. Rescheduling...\n", teams[homeIndex].homeground, day, month);
         incrementDate(&day, &month, &(int){0});
     }
-
-    // Ensure the away team gets rest
-    while (needsRest(awayIndex, day, month)==1) {
-        printf("Team %s needs rest. Rescheduling match...\n", teams[awayIndex].name);
-        incrementDate(&day, &month, &(int){0});
-    }
-
-    // Store match details
     strcpy(matchDetails[matchIndex].team1, teams[homeIndex].name);
     strcpy(matchDetails[matchIndex].team2, teams[awayIndex].name);
     strcpy(matchDetails[matchIndex].venue, teams[homeIndex].homeground);
@@ -181,13 +162,6 @@ void scheduleMatch(int homeIndex, int awayIndex, int day, int month, int matchCo
     strcpy(matchDetails[matchIndex].time, isWeekend(day, month) ? (matchCount % 2 == 0 ? "03:30 PM" : "07:30 PM") : "07:30 PM");
     matchIndex++;
 
-    // Update last played details
-    lastPlayed[homeIndex] = matchIndex;
-    lastPlayed[awayIndex] = matchIndex;
-    lastPlayedDay[homeIndex] = day;
-    lastPlayedDay[awayIndex] = day;
-    lastPlayedMonth[homeIndex] = month;
-    lastPlayedMonth[awayIndex] = month;
 }
 
 
@@ -289,11 +263,45 @@ int findOrAddTeam(char *teamName) {
     return teamCount++;
 }
 
-// Function to update points table based on match results
-// Function to update points table based on match results and calculate NRR
+// Function to update Net Run Rate in the points table
+void updateNetRunRate() {
+    // Loop through each match to update NRR
+    for (int i = 0; i < matchIndex; i++) {
+        int team1Runs = 0, team2Runs = 0;
+        float team1Overs = 0.0, team2Overs = 0.0;
+
+        // Get the runs and overs for both teams in the current match
+        for (int j = 0; j < matchIndex; j++) {
+            if (strcmp(matchDetails[i].team1, pointsTable[j].team) == 0) {
+                team1Runs = matchDetails[i].team1_runs; // Runs scored by team1
+                team1Overs = matchDetails[i].team1_overs; // Overs played by team1
+            } else if (strcmp(matchDetails[i].team2, pointsTable[j].team) == 0) {
+                team2Runs = matchDetails[i].team2_runs; // Runs scored by team2
+                team2Overs = matchDetails[i].team2_overs; // Overs played by team2
+            }
+        }
+
+        // Calculate the NRR for both teams
+        if (team1Overs > 0) {
+            float team1NRR = ((float)team1Runs / team1Overs) - ((float)team2Runs / team2Overs);
+            int index1 = findOrAddTeam(matchDetails[i].team1);
+            pointsTable[index1].netRunRate += team1NRR; // Update team1's NRR
+        }
+
+        if (team2Overs > 0) {
+            float team2NRR = ((float)team2Runs / team2Overs) - ((float)team1Runs / team1Overs);
+            int index2 = findOrAddTeam(matchDetails[i].team2);
+            pointsTable[index2].netRunRate += team2NRR; // Update team2's NRR
+        }
+    }
+}
+
+
+// Function to update points table based on match results, including runs and overs
 void getMatchResults() {
     int winningTeam = 0;
-    int runDifference = 0;
+    int team1Runs, team2Runs;
+    float team1Overs, team2Overs;
 
     printf("\n\nEnter match results:-\n");
     for (int i = 0; i < matchIndex; i++) {
@@ -305,6 +313,25 @@ void getMatchResults() {
                matchDetails[i].day,
                matchDetails[i].month);
 
+        // Get the runs and overs for team 1
+        printf("Enter runs scored by %s: ", matchDetails[i].team1);
+        scanf("%d", &team1Runs);
+        printf("Enter overs played by %s: ", matchDetails[i].team1);
+        scanf("%f", &team1Overs);
+
+        // Get the runs and overs for team 2
+        printf("Enter runs scored by %s: ", matchDetails[i].team2);
+        scanf("%d", &team2Runs);
+        printf("Enter overs played by %s: ", matchDetails[i].team2);
+        scanf("%f", &team2Overs);
+
+        // Store the runs and overs for the teams in the matchDetails array
+        matchDetails[i].team1_runs = team1Runs;
+        matchDetails[i].team1_overs = team1Overs;
+        matchDetails[i].team2_runs = team2Runs;
+        matchDetails[i].team2_overs = team2Overs;
+
+        // Get the winning team
         printf("Enter the winning team (1 or 2): ");
         scanf("%d", &winningTeam);
 
@@ -313,39 +340,34 @@ void getMatchResults() {
             continue;
         }
 
-        printf("Enter the difference in runs between winner and loser: ");
-        scanf("%d", &runDifference);
-
+        // Update the points table based on the winner
         int index1 = findOrAddTeam(matchDetails[i].team1);
         int index2 = findOrAddTeam(matchDetails[i].team2);
 
         if (winningTeam == 1) {
             pointsTable[index1].wins++;
-            pointsTable[index1].points += 2;
-            pointsTable[index1].netRunRate += (float)runDifference/20.0;
+            pointsTable[index1].points += 2; // 2 points for a win
             pointsTable[index2].losses++;
-            pointsTable[index2].netRunRate -= (float)runDifference/20.0;
         } else {
             pointsTable[index2].wins++;
-            pointsTable[index2].points += 2;
-            pointsTable[index2].netRunRate += (float)runDifference/20.0;
+            pointsTable[index2].points += 2; // 2 points for a win
             pointsTable[index1].losses++;
-            pointsTable[index1].netRunRate -= (float)runDifference/20.0;
         }
     }
+
+    // After all match results have been entered, update the Net Run Rate
+    updateNetRunRate();
 }
 
 
-
 //function to sort the points table
+// Function to sort the points table
 void sortPointsTable() {
     for (int i = 0; i < teamCount - 1; i++) {
         for (int j = i + 1; j < teamCount; j++) {
-            // Sort by points first
+            // Sorting first by points, then by NRR if points are the same
             if (pointsTable[i].points < pointsTable[j].points ||
-                (pointsTable[i].points == pointsTable[j].points &&
-                 pointsTable[i].netRunRate < pointsTable[j].netRunRate)) {
-                // Swap teams
+                (pointsTable[i].points == pointsTable[j].points && pointsTable[i].netRunRate < pointsTable[j].netRunRate)) {
                 PointsTable temp = pointsTable[i];
                 pointsTable[i] = pointsTable[j];
                 pointsTable[j] = temp;
@@ -354,13 +376,15 @@ void sortPointsTable() {
     }
 }
 
-// Function to display the points table with Net Run Rate
+// Function to display the points table
+// Function to display the points table
 void displayPointsTable() {
-    sortPointsTable();  // Automatically sort by Points + NRR
-    printf("\n🏆 Points Table:\n");
-    printf("----------------------------------------------------------------------------\n");
-    printf("%-20s %-5s %-5s %-7s %-10s\n", "Team", "Wins", "Losses", "Points", "NRR");
-    printf("----------------------------------------------------------------------------\n");
+    sortPointsTable();  // Sort the points table first
+
+    printf("\nPoints Table:\n");
+    printf("-------------------------------------------------------------\n");
+    printf("%-20s %-5s %-5s %-7s %-10s\n", "Team", "Wins", "Losses", "Points", "Net Run Rate");
+    printf("-------------------------------------------------------------\n");
 
     for (int i = 0; i < teamCount; i++) {
         printf("%-20s %-5d %-5d %-7d %-10.2f\n",
@@ -368,10 +392,11 @@ void displayPointsTable() {
                pointsTable[i].wins,
                pointsTable[i].losses,
                pointsTable[i].points,
-               pointsTable[i].netRunRate);  // Printing Net Run Rate
+               pointsTable[i].netRunRate);
     }
-    printf("----------------------------------------------------------------------------\n");
 }
+
+
 
 
 // Function to display the playoffs
@@ -431,6 +456,8 @@ void displayPlayoffs() {
     strcpy(final_winner, inputWinner);
     printf("   Champion: %s\n", final_winner);
 }
+
+
 
 int main() {
 

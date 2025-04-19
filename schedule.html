@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IPL Scheduler</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+
+  <style>
+    body {
+      background-image: url('bg.png'); /* Replace with correct path if needed */
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-position: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    .form-container {
+      background-color: rgba(255, 255, 255, 0.95);
+      padding: 2.5rem;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 600px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .form-container h2 {
+      text-align: center;
+      margin-bottom: 2rem;
+      font-weight: bold;
+      color: #1f3c88;
+    }
+
+    label {
+      font-weight: 600;
+      margin-top: 1rem;
+    }
+
+    .btn-primary {
+      width: 100%;
+      background-color: #1f3c88;
+      border: none;
+      margin-top: 1rem;
+    }
+
+    .btn-success {
+      width: 100%;
+      margin-top: 1rem;
+    }
+
+    .team-entry {
+      margin-top: 1rem;
+    }
+
+    .output-table {
+      background-color: white;
+      margin-top: 2rem;
+      border-radius: 10px;
+      padding: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="form-container">
+    <h2>IPL Scheduler</h2>
+
+    <div class="mb-3">
+      <label for="numTeams" class="form-label">Number of Teams:</label>
+      <input type="number" id="numTeams" class="form-control" min="1" max="20" placeholder="Enter number of teams" />
+      <button class="btn btn-primary" onclick="generateInputs()">Submit</button>
+    </div>
+
+    <form id="teamForm">
+      <div id="teamInputs"></div>
+      <button type="submit" class="btn btn-success">Submit Teams</button>
+    </form>
+
+    <div id="output" class="output-table"></div>
+  </div>
+
+  <script>
+    function generateInputs() {
+      const num = document.getElementById("numTeams").value;
+      const container = document.getElementById("teamInputs");
+      container.innerHTML = "";
+
+      for (let i = 1; i <= num; i++) {
+        container.innerHTML += `
+          <div class="team-entry">
+            <label for="team${i}">Team ${i} Name:</label>
+            <input type="text" name="team${i}" class="form-control" required />
+
+            <label for="ground${i}" class="mt-2">Team ${i} Home Ground:</label>
+            <input type="text" name="ground${i}" class="form-control" required />
+          </div>
+        `;
+      }
+    }
+
+    document.getElementById("teamForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const output = document.getElementById("output");
+
+      let html = "<h5>Entered Teams:</h5><table class='table table-striped'><thead><tr><th>Team Name</th><th>Home Ground</th></tr></thead><tbody>";
+
+      for (let i = 1; formData.has("team" + i); i++) {
+        const name = formData.get("team" + i);
+        const ground = formData.get("ground" + i);
+        html += `<tr><td>${name}</td><td>${ground}</td></tr>`;
+      }
+
+      html += "</tbody></table>";
+      output.innerHTML = html;
+    });
+  </script>
+</body>
+</html>
